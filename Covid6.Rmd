@@ -1,0 +1,483 @@
+---
+title: "Covid-19 in Ireland"
+author: "Frank Moriarty and Ciaran Prendergast"
+date: "4/27/2020"
+output: 
+  html_document:
+    code_folding: hide
+    number_sections: yes
+    theme: journal
+    highlight: "tango"
+    toc: yes
+    toc_float: true
+editor_options:
+   chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo=FALSE)
+library(tidyverse)
+library(RCurl)
+x <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/doh_covid_ie_cases_analysis.csv")
+data1 <- read.csv(text = x)
+n <- nrow(data1)
+the.date <- data1$date[n]
+```
+ 
+```{r}
+library(png)
+library(grid)
+img <- readPNG("FAVPNG.png")
+grid.raster(img)
+
+
+ 
+
+```
+
+# The Data; Illustrated
+
+As the coronavirus pandemic has swept the world, the central statistics offices of many nations have gathered and released data on the progression of the ongoing battle. We've summed up some of the relavent data for Ireland in some simple graphs. We sourced our data from [gov.ie](https://www.gov.ie/en/campaigns/c36c85-covid-19-coronavirus/?referrer=/health-covid-19).
+
+<style>
+body {
+text-align: justify}
+</style>
+<br><br><br><br>
+
+## Progression of the Virus
+
+As we can see here, the number of corona cases in Ireland has grown exponentially, reaching **`r data1$cases_cumul[which(data1$date == the.date)]`** on `r the.date`. On the brightside, however, we can see that the rate of infection has fallen drastically; as the impact of *social distancing* translates into each infected person infecting fewer and fewer other people.
+
+```{r Covid Progression, include=TRUE, message=FALSE, warning=FALSE}
+
+library(tidyverse)
+library(RCurl)
+x <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/doh_covid_ie_cases_analysis.csv")
+data1 <- read.csv(text = x)
+
+
+
+n <- nrow(data1)
+
+total_cases <- as.numeric(data1$cases_cumul)
+
+data1$newcases[1] <- NA
+if (n > 1) for(i in 2:n) data1$newcases[i] <- ( total_cases[i] - total_cases[i-1] )
+
+
+data1$newcases_per[1] <- NA
+if (n > 1) for(i in 2:n) data1$newcases_per[i] <- ( 100*(total_cases[i] - total_cases[i-1])/total_cases[i-1] )
+
+
+
+
+
+total1 <- c(1,1,1,2,6,13,18,19,21,24,34,43,70,90,129,169,data1$cases_cumul)  #this gives the total cases with the manually-typed numbers describing (constant) days not included in csv file
+
+increase2 <- c(NA,NA,NA,NA,NA,NA,NA,5.6,10.5,14.3,41.7,26.5,62.8,28.6,43.3,31,60.36,na.omit(data1$newcases_per))  #this gives us the vector for increase on total, the nas are included to ensure that that the line only starts on the 7th
+earlier.dates <- c("29-Feb", "1-Mar", "2-Mar", "3-Mar", "4-Mar", "5-Mar", "6-Mar", "7-Mar", "8-Mar", "9-Mar","10-Mar", "11-Mar", "12-Mar","13-Mar", "14-Mar", "15-Mar")
+dates<- c(earlier.dates,data1$date)
+dates0 <- as.factor(dates)                   #this calls the dates
+dates1 <- as.Date(dates0, format= "%d-%b") 
+df <- data.frame(increase2,dates1,total1)
+
+ylim.prim <- c(0, 60)   
+ylim.sec <- c(0, 18000)  
+
+b <- diff(ylim.prim)/diff(ylim.sec)
+a <- b*(ylim.prim[1] - ylim.sec[1])
+
+plot <- ggplot(df, aes(dates1, increase2)) +
+  geom_col(aes(color="tomato4")) +
+  geom_line(aes(y = a + total1*b), color = "red") +
+  scale_y_continuous("% Increase on Total", sec.axis = sec_axis(~ (. - a)/b, name = "Total Cases")) +
+  scale_x_date("Dates") +
+  ggtitle("Progression of Covid-19 in Ireland") 
+
+plot2 <- plot + scale_color_discrete(name = "", labels = "% Increase on Total")
+
+plot2 + theme(legend.key = element_rect(fill = "lightblue", color = NA), axis.text=element_text(size=12, face = "bold"),
+              axis.title=element_text(size=14,face="bold"), plot.title = element_text(size=16, face = "bold"))
+
+
+```
+<a href="#top">Back to top</a>
+<br><br><br><br>
+
+## Breakdown of Ages Affected
+
+As we can see in the graph below, the most affected group has been the **Over 75s**, while people aged in their low 20s or younger remain the least likely to have contracted the virus. The disproportionatly fewer young people being affected scews the mean somewhat; as we can see when it is adjusted to include only people 15 years old or older.
+
+```{r, include=TRUE, message=FALSE, warning=FALSE}
+
+library(tidyverse)
+library(RCurl)
+
+x <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/doh_covid_ie_cases_analysis.csv")
+data1 <- read.csv(text = x, stringsAsFactors=FALSE)
+n <- nrow(data1)
+the.date <- data1$date[n]
+y <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/age_population_cso_2019.csv")
+age_population_cso <- read.csv(text = y, stringsAsFactors=FALSE)
+
+totalllcases <- as.numeric(data1$cases_cumul)
+age <- c("0-4","05-14","15-24","25-34","35-44","45-54","55-64","65-74", "75-84", "85+")
+
+
+cases <- as.numeric(c(data1$cases_below_1[which(data1$date == the.date )] + data1$cases_1_4[which(data1$date == the.date )],
+                      data1$cases_5_14[which(data1$date == the.date )],
+                      data1$cases_15_24[which(data1$date == the.date )],
+                      data1$cases_25_34[which(data1$date == the.date )],
+                      data1$cases_35_44[which(data1$date == the.date )],
+                      data1$cases_45_54[which(data1$date == the.date )],
+                      data1$cases_55_64[which(data1$date == the.date )],
+                      data1$cases_65_74[which(data1$date == the.date )], data1$cases_75_84[which(data1$date == the.date)], data1$cases_85_plus[which(data1$date == the.date)]))
+
+#the cases by age all as numeric
+
+popcso<- age_population_cso$pop_estimate[1:10]      #the population estimates  
+
+
+popcso.dividedbymillion <- popcso/1000000          #the population estimates divided by million as per formula in notebook
+
+
+
+cases1M <- cases/popcso.dividedbymillion         #this gives a string of the cases per one million by age
+
+df <- data.frame(age,cases1M)
+
+the.plot <- ggplot(data=df, aes(x= age, y=cases1M,fill="indianred4", color="indianred4")) + geom_bar(stat='identity') 
+
+
+
+
+total.cases <-totalllcases[which(data1$date == the.date )]  #this gives the total cases on the date
+
+totalpop.dividedby1m <- (age_population_cso$pop_estimate[which(age_population_cso$age_group=='cases_all_ages')])/1000000
+
+mean.cases1M<- as.numeric(total.cases)/as.numeric(totalpop.dividedby1m)   #this is population mean for average abline
+
+
+total.cases15plus <- totalllcases[which(data1$date == the.date )] -  ((data1$cases_below_1[which(data1$date == the.date )] + data1$cases_1_4[which(data1$date == the.date )]+               data1$cases_5_14[which(data1$date == the.date )])) #this gave the total amount of cases 15 plus
+
+pop15plus.dividedby1M <- (age_population_cso$pop_estimate[which(age_population_cso$age_group=='cases_age_15_plus')])/1000000    #this was the population 15 plus divided by 1 million as per formula in notebook
+
+mean.cases15plus1M <- total.cases15plus/pop15plus.dividedby1M  #this shows the total cases 15 plus per 1 million people
+
+
+
+
+plot2 <- the.plot + scale_color_manual(values="indianred4",guide=FALSE)+scale_fill_manual(values="indianred4", guide=FALSE)
+
+
+
+
+
+
+plot3 <- plot2 +geom_hline(aes(yintercept= mean.cases15plus1M, linetype = "Mean 15-plus"), colour= "green", size=1.25) +
+  geom_hline(aes(yintercept=mean.cases1M , linetype = "Mean Total Population"), colour= "yellow", size=1.25) +
+  scale_linetype_manual(name = "", values = c(2, 2), 
+                        guide = guide_legend(override.aes = list(color = c("green", "yellow"))))
+plot4 <- plot3 + labs(title= "Confirmed Covid Cases by Age",y= "Cases per Million", x = "Age-groups (Yr)")
+
+
+plot4 +theme(legend.key = element_rect(fill = "lightblue", color = NA), axis.text=element_text(size=8, face = "bold"),
+             axis.title=element_text(size=14,face="bold"), plot.title = element_text(size=16, face = "bold"))
+
+
+
+```
+<a href="#top">Back to top</a>
+<br><br><br><br>
+
+## Who has been hospitalised?
+
+As we can see, those hospitalised have been predominantly the **Over 65s** group, while the youngest of us remain highly unlikely to be hospitalised if infected. 
+
+```{r, echo=FALSE, message=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(RCurl)
+
+x <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/doh_covid_ie_cases_analysis.csv")
+data1 <- read.csv(text = x, stringsAsFactors=FALSE)
+
+
+age <- c(rep("0-5",2), rep("05-14",2),rep("15-24",2),rep("25-34",2),rep("35-44",2),rep("45-54",2),rep("55-64",2),rep("65-74",2),rep("75-84",2),rep("85+",2))
+hospital <- rep(c("Yes", "No"), 10)
+
+n <- nrow(data1)
+the.date <- data1$date[n]
+
+
+
+value <- as.numeric(c((data1$cases_below_1[which(data1$date == the.date )] + data1$cases_1_4[which(data1$date == the.date )]) -as.numeric((data1$hosp_under_5[which(data1$date == the.date )])), data1$hosp_under_5[which(data1$date == the.date )], (data1$cases_5_14[which(data1$date == the.date )]) - ((data1$hosp_5_14[which(data1$date == the.date )])),(data1$hosp_5_14[which(data1$date == the.date )]),
+                       (data1$cases_15_24[which(data1$date == the.date )]) - ((data1$hosp_15_24[which(data1$date == the.date )])),(data1$hosp_15_24[which(data1$date == the.date )]), (data1$cases_25_34[which(data1$date == the.date )]) - ((data1$hosp_25_34[which(data1$date == the.date )])),(data1$hosp_25_34[which(data1$date == the.date )]),
+                       (data1$cases_35_44[which(data1$date == the.date )]) - ((data1$hosp_35_44[which(data1$date == the.date )])),(data1$hosp_35_44[which(data1$date == the.date )]),
+                       (data1$cases_45_54[which(data1$date == the.date )]) - ((data1$hosp_45_54[which(data1$date == the.date )])),(data1$hosp_45_54[which(data1$date == the.date )]),
+                       (data1$cases_55_64[which(data1$date == the.date )]) - ((data1$hosp_55_64[which(data1$date == the.date )])),(data1$hosp_55_64[which(data1$date == the.date )]),
+                       (data1$cases_65_74[which(data1$date == the.date )]) - ((data1$hosp_65_74[which(data1$date == the.date )])),(data1$hosp_65_74[which(data1$date == the.date )]),(data1$cases_75_84[which(data1$date == the.date)])- ((data1$hosp_75_84[which(data1$date == the.date)])), data1$hosp_75_84[which(data1$date == the.date)]))
+
+value0 <- c(data1$cases_85_plus[which(data1$date == the.date)]- (data1$hosp_85_plus[which(data1$date == the.date)]), (data1$hosp_85_plus[which(data1$date == the.date)]))
+
+value1 <- c(value,value0)
+
+datas <- data.frame(age,hospital,value1)
+
+
+
+
+graph<- ggplot(datas, aes(fill= hospital, y=value1, x=age)) + geom_bar(position="stack", stat="identity") + scale_fill_manual(name="", breaks=c("No", "Yes"), labels=c("Hospitalised", "Not Hospitalised"), values=c("tomato4", "indianred1"))
+
+
+graph1 <- graph + ggtitle("Hospitalisation By Age") + theme(plot.title = element_text(hjust = 0.5,lineheight=.8, face="bold"))
+
+
+
+
+graph2 <- graph1 + scale_x_discrete(name="Age Group") + scale_y_continuous(name="Cumulative Total")
+
+
+graph3 <-graph2 + theme(axis.title.y =  element_text(face="bold"), axis.title.x = element_text(face="bold"), axis.text.x  = element_text(face = "bold"), axis.text.y = element_text(face="bold"))
+
+
+graph3 +theme(axis.text=element_text(size=10, face = "bold"),
+              axis.title=element_text(size=14,face="bold"), plot.title = element_text(size=16, face = "bold"))
+
+```
+<a href="#top">Back to top</a>
+<br><br><br><br>
+
+## Evolution of the Mode of Transmission
+
+As travel restricions came into place the primary mode of infection has moved away from travel to infected regions and it became far more common to catch the virus through close contact with an infected person, such as a family-member; or through [Community Transmission](https://en.wikipedia.org/wiki/Transmission_(medicine)). 
+
+```{r, include=TRUE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(scales)
+library(tidyverse)
+library(RCurl)
+x <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/doh_covid_ie_cases_analysis.csv")
+data1 <- read.csv(text = x)
+n <- nrow(data1)
+
+
+dates <- as.factor(data1$date)
+dates1 <- as.Date(dates, format= "%d-%b")
+dataf <- data.frame(dates1,data1$percent_comm_trns,data1$percent_contact,data1$percent_travel)
+
+plot <- ggplot(dataf, aes(dates1, data1$percent_comm_trns)) +
+  geom_line(aes(color="tomato4")) +
+  geom_line(aes(y = data1$percent_contact, color = "blue"))+
+  geom_line(aes(y = data1$percent_travel, color = "green"))
+  
+
+  
+
+plot2 <- plot + labs(title = "Evolution of the Mode of Transmission")+
+ scale_y_continuous("% of New Infections", labels = percent_format(), limits=c(0,1))+
+  scale_x_date("Date")
+
+plot3<- plot2 + scale_color_discrete(name = "", labels = c("Community Transmission","Travel-Related","Close Contact"))
+
+
+plot3 + theme(axis.text=element_text(size=12, face = "bold"),axis.title=element_text(size=14,face="bold"),plot.title= element_text(size=16, face="bold"))
+  
+
+
+```
+<a href="#top">Back to top</a>
+<br><br><br><br>
+
+## Counties most affected
+
+As we can see in the map, **Dublin** and **Cavan** have suffered the highest relative proportion of cases, followed by Monaghan, Westmeath, Kildare and Wicklow. As of `r the.date` , it is mainly counties of the west that have been least affected.
+
+```{r, include=TRUE, message=FALSE}
+
+library(tidyverse)
+library(RCurl)
+x <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/2020-29-Apr_covid_ie_cases_analysis.csv")
+newcases <- read.csv(text = x, stringsAsFactors=FALSE)
+
+
+n <- nrow(newcases)
+the.date <- newcases$date[n]
+library(sf)
+library(tidyverse)
+library(raster)
+library(dplyr)
+library(spData)
+library(tmap)    # for static and interactive maps
+
+
+
+
+
+library(csodata)
+
+shp <- cso_get_geo("ac")
+
+
+
+
+x <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/2020-29-Apr_covid_ie_cases_analysis.csv")
+newcases <- read.csv(text = x, stringsAsFactors=FALSE)
+
+
+n <- nrow(newcases)
+the.date <- newcases$date[n]
+
+
+counties_start <- grep("cases_carlow", colnames(newcases))
+counties_stop <- grep("cases_wicklow", colnames(newcases))
+
+counties <- tibble(newcases[which(newcases$date == the.date ), counties_start:counties_stop])
+
+cso <- read_csv("counties_population_cso_2016.csv")
+
+counties <- data.frame(r1=names(counties), t(counties))
+colnames(counties)[2] <- "cases"
+colnames(counties)[1] <- "county_doh"
+counties$cases <- as.numeric(as.character(counties$cases))
+counties[,1] <- sub("cases_", "", counties[,1])
+counties$cases <- as.numeric(counties$cases)
+
+county_cases <- merge(cso, counties, by="county_doh")
+
+county_cases$cases_per_mil <- 1000000*county_cases$cases/county_cases$pop
+
+names(shp)[8] <- "county"
+shp$county[20]="Dun Laoghaire-Rathdown"
+county_cases$county[8]="Dun Laoghaire-Rathdown"
+
+merged_cases <- merge(shp, county_cases, by="county")
+
+tm_shape(merged_cases) + tm_fill(col="cases_per_mil", style = "pretty", title=c(paste("Cases per million", the.date))) + tm_borders() + tm_layout(asp = 1.28)
+
+                                 
+```                   
+<a href="#top">Back to top</a>
+<br><br><br><br>
+
+
+## ICU Admissions
+
+The **Intensive Care Units** in Ireland saw peak patient influx in late March - early April, and the percentage increase in ICU admissions began to below 0 on occasion from late April. 
+<br><br><br><br>
+```{r, include=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(RCurl)
+x <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/doh_covid_ie_cases_analysis.csv")
+data1 <- read.csv(text = x)
+n <- nrow(data1)
+
+#dervives column of new icu cases
+data1$newicu[1] <- NA
+if (n > 1) for(i in 2:n) data1$newicu[i] <- ( data1$cases_icu[i] - data1$cases_icu[i-1] )
+
+#percentage of new cases
+data1$newicu_per[1] <- NA
+if (n > 1) for(i in 2:n) data1$newicu_per[i] <- ( 100*(data1$cases_icu[i] - data1$cases_icu[i-1])/data1$cases_icu[i-1] )
+
+newicu <- as.numeric(data1$newicu)
+newicu_per <- as.numeric(data1$newicu_per)
+dates <- as.factor(data1$date)                   #this calls the dates
+dates1 <- as.Date(dates, format= "%d-%b")
+df <- data.frame(newicu_per,dates1,newicu)
+
+ylim.prim <- c(0, 80)   
+ylim.sec <- c(0, 50)
+
+b <- diff(ylim.prim)/diff(ylim.sec)
+a <- b*(ylim.prim[1] - ylim.sec[1])
+
+plot <- ggplot(df, aes(dates1,newicu_per)) +
+  geom_col(aes(fill ="red")) +
+  geom_line(aes(y = a + newicu*b), color = "blue") +
+  scale_y_continuous("% Increase on Total Admissions", sec.axis = sec_axis(~ (. - a)/b, name = "Total Admissions")) +
+  scale_x_date("Dates") +
+  ggtitle("ICU Admissions in Ireland")
+
+plot2 <- plot + scale_color_discrete(name = "", labels = "% Increase on Total Admissions") +
+  scale_fill_discrete(name = "", labels = "Increase on Total")
+
+plot2 + theme(axis.text=element_text(size=12, face = "bold"),
+              axis.title=element_text(size=14,face="bold"), plot.title = element_text(size=16, face = "bold"))
+
+
+```
+<a href="#top">Back to top</a>
+<br><br><br><br>
+
+## Trend in Hospital Admissions
+
+
+Hospital admissions have fallen slowly after early peaks near April 1st. The percentage increase on total hospital admissions trended downwards, with interuption, throughout the crisis.
+
+<br><br><br><br>
+```{r , echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(RCurl)
+x <- getURL("https://raw.githubusercontent.com/frankmoriarty/covid_ie/master/doh_covid_ie_cases_analysis.csv")
+data1 <- read.csv(text = x)
+n <- nrow(data1)
+
+data1$newhosp[1] <- NA
+if (n > 1) for(i in 2:n) data1$newhosp[i] <- ( data1$cases_hosp[i] - data1$cases_hosp[i-1] )
+
+data1$newhosp_per[1] <- NA
+if (n > 1) for(i in 2:n) data1$newhosp_per[i] <- ( 100*(data1$cases_hosp[i] - data1$cases_hosp[i-1])/data1$cases_hosp[i-1] )
+
+newhosp <- as.numeric(data1$newhosp)
+newhosp_per <- as.numeric(data1$newhosp_per)
+
+dates <- as.factor(data1$date)                   #this calls the dates
+dates1 <- as.Date(dates, format= "%d-%b")
+df <- data.frame(newhosp_per,dates1,newhosp)
+
+ylim.prim <- c(0, 50)   
+ylim.sec <- c(0, 250)
+
+b <- diff(ylim.prim)/diff(ylim.sec)
+a <- b*(ylim.prim[1] - ylim.sec[1])
+
+plot <- ggplot(df, aes(dates1,newhosp_per)) +
+  geom_col(aes(fill ="red")) +
+  geom_line(aes(y = a + newhosp*b), color = "blue") +
+  scale_y_continuous("% Increase on Total Admissions", sec.axis = sec_axis(~ (. - a)/b, name = "Total Admissions")) +
+  scale_x_date("Dates") +
+  ggtitle("Covid-related Hospital Admissions in Ireland")
+
+plot2 <- plot + scale_color_discrete(name = "", labels = "% Increase on Total Admissions") +
+  scale_fill_discrete(name = "", labels = "Increase on Total")
+
+plot2 + theme(axis.text=element_text(size=12, face = "bold"),
+              axis.title=element_text(size=14,face="bold"), plot.title = element_text(size=16, face = "bold"))
+
+```
+
+
+
+<a href="#top">Back to top</a>
+<br><br><br><br>
+<center>
+![Stay safe](covidsigns.jpg)
+&nbsp;
+<hr />
+<p style="text-align: center;">A work by <a href=""> Frank Moriarty and Ciaran Prendergast</a></p>
+<p style="text-align: center;"><span style="color: #808080;"><em>frankmoriarty@rcsi.ie</em></span></p>
+
+<!-- Add icon library -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+<!-- Add font awesome icons -->
+<p style="text-align: center;">
+    <a href="https://www.facebook.com" class="fa fa-facebook"></a>
+    <a href="https://www.linkedin.com/in/yan-holtz-2477534a/" class="fa fa-linkedin"></a>
+    <a href="https://github.com/frankmoriarty" class="fa fa-github"></a>
+</p>
+
+&nbsp;
